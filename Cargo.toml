@@ -13,6 +13,7 @@ yaml = ["dep:serde_yaml"]
 [dependencies]
 chrono = { version = "0.4.26", features = ["serde"] }
 clap = { version = "4.3.17", features = ["derive", "env"] }
+dialoguer = "0.10.4"
 serde = { version = "1.0.174", features = ["derive"] }
 serde_json = { version = "1.0.103", optional = true }
 serde_yaml = { version = "0.9.25", optional = true }

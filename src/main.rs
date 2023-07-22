@@ -1,6 +1,7 @@
 mod meeting;
 
 use clap::Parser;
+use dialoguer::Select;
 
 use crate::meeting::Meeting;
 
@@ -16,10 +17,6 @@ struct Cli {
   buffer_end: i64,
 }
 
-fn choose(meets: &[Meeting]) -> &Meeting {
-  &meets[0]
-}
-
 fn main() {
   let cli = Cli::parse();
 
@@ -31,11 +28,35 @@ fn main() {
     .filter(|m| m.is_now(cli.buffer_start, cli.buffer_end))
     .collect::<Vec<_>>();
 
-  if meets.is_empty() {
-    eprintln!("No Meeting Found!");
-  } else if let Err(err) = choose(&meets).join() {
-    eprintln!("Error Joining Meeting: {err}");
+  let meet = &meets[match meets.len() {
+    0 => {
+      eprintln!("No Meeting Found!");
+      return;
+    }
+    1 => 0,
+    _ => match Select::new()
+      .with_prompt("Choose Meeting")
+      .items(&meets)
+      .interact_opt()
+    {
+      Ok(i) => {
+        if let Some(i) = i {
+          i
+        } else {
+          println!("No Meeting Choosen!");
+          return;
+        }
+      }
+      Err(err) => {
+        eprintln!("Error Choosing Meeting: {err}");
+        return;
+      }
+    },
+  }];
+
+  if let Err(err) = meet.join() {
+    println!("Error Joining Meeting: {meet} -> {err}");
   } else {
-    println!("Joining Meeting!");
+    println!("Joining Meeting: {meet}");
   }
 }

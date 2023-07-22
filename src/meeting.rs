@@ -1,4 +1,5 @@
 use std::{
+  fmt::{self},
   fs, io,
   path::Path,
   process::{Child, Command},
@@ -9,24 +10,30 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-enum MFrequency {
+enum Frequency {
   Once(NaiveDate),
-  Daily,
   Weekly(Vec<Weekday>),
+  Daily,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Meeting {
-  name: String,
-  freq: MFrequency,
+  pub name: String,
+  freq: Frequency,
   start: NaiveTime,
   end: NaiveTime,
   metno: String,
   paswd: Option<String>,
 }
 
+impl fmt::Display for Meeting {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.name)
+  }
+}
+
 #[derive(Debug, Error)]
-pub enum MeetingReadError {
+pub enum ReadError {
   #[error(transparent)]
   IOError(#[from] io::Error),
 
@@ -49,7 +56,7 @@ pub enum MeetingReadError {
 impl Meeting {
   pub fn read_meetings<P: AsRef<Path>>(
     path: P,
-  ) -> Result<Vec<Meeting>, MeetingReadError> {
+  ) -> Result<Vec<Meeting>, ReadError> {
     let s = fs::read_to_string(&path)?;
 
     Ok(
@@ -69,7 +76,7 @@ impl Meeting {
         #[cfg(feature = "yaml")]
         "yaml" | "yml" => serde_yaml::from_str(&s)?,
 
-        _ => return Err(MeetingReadError::FormatNotSupported),
+        _ => return Err(ReadError::FormatNotSupported),
       },
     )
   }
@@ -77,13 +84,13 @@ impl Meeting {
   pub fn is_now(&self, buffer_start: i64, buffer_end: i64) -> bool {
     let now = Local::now().naive_local();
 
-    if let MFrequency::Once(date) = self.freq {
+    if let Frequency::Once(date) = self.freq {
       if date != now.date() {
         return false;
       }
     }
 
-    if let MFrequency::Weekly(days) = &self.freq {
+    if let Frequency::Weekly(days) = &self.freq {
       if !days.contains(&now.weekday()) {
         return false;
       }
@@ -97,7 +104,7 @@ impl Meeting {
     format!(
       "zoommtg://zoom.us/join?confno={}{}",
       self.metno,
-      self.paswd.as_ref().map_or("".to_string(), |p| format!(
+      self.paswd.as_ref().map_or(String::new(), |p| format!(
         "{}&pwd={}",
         if cfg!(windows) { "^" } else { "" },
         p
@@ -105,8 +112,8 @@ impl Meeting {
     )
   }
 
+  #[cfg(target_os = "linux")]
   pub fn join(&self) -> Result<Child, io::Error> {
-    #[cfg(target_os = "linux")]
     Command::new("xdg-open").arg(self.get_url()).spawn()
   }
 
